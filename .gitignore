@@ -1,0 +1,13 @@
+.DS_Store
+
+.vscode/
+.idea/
+
+*.log
+tmp/
+temp/
+
+build/
+venv/
+__pycahce__/
+*.pyc
