@@ -11,3 +11,9 @@ build/
 venv/
 __pycahce__/
 *.pyc
+
+#ignore csv data files
+*.csv
+
+#ignore PCAP files as not sure if i can commit these
+*.pcap
