@@ -1,0 +1,12 @@
+[submodule "external/CycloneCRYPTO"]
+	path = external/CycloneCRYPTO
+	url = https://github.com/Oryx-Embedded/CycloneCRYPTO.git
+[submodule "external/external/Common"]
+	path = external/external/Common
+	url = https://github.com/Oryx-Embedded/Common.git
+[submodule "external/external/CycloneCRYPTO"]
+	path = external/external/CycloneCRYPTO
+	url = https://github.com/Oryx-Embedded/CycloneCRYPTO.git
+[submodule "external/Common"]
+	path = external/Common
+	url = https://github.com/Oryx-Embedded/Common.git

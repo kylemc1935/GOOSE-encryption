@@ -15,5 +15,5 @@ __pycahce__/
 #ignore csv data files
 *.csv
 
-#ignore PCAP files as not sure if i can commit these
-*.pcap
+#ignore PCAP files as not sure if i can commit these (removed)
+#*.pcap

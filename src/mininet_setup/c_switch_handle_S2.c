@@ -5,49 +5,74 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
-#include "../encryption_timings/decryption.h"
 #include "../encryption_timings/encryption_config.h"
-#include "latency.h"
+#include "../encryption_timings/latency.h"
 
 #define CAPTURE_IFACE "S2-eth1"
 #define SEND_IFACE "S2-eth2"
 #define ETHERNET_HEADER_LEN 14
 
-int print_latency = 1;
 int packet_count = 0;
 pcap_t *send_handle = NULL;
 encryption_config_t *chosen_config;
+
+const char *DECRYPTION_LATENCY_LOG = "../data/mn_data/decryption_latency_log.csv";
 FILE *decryption_latency_file;
 encryption_mode_t enc_mode;
 
-//
+
 void packet_handler_decrypt(u_char *user, const struct pcap_pkthdr *header, const u_char *packet) {
+    uint16_t ethertype = ntohs(*(uint16_t *)(packet + 12));
+    if (ethertype != 0x88b8) { //ensure packet is of type GOOSE
+        return;
+    }
+    packet_count ++;
     long start_time, elapsed;
     start_time = get_time_ns();
 
     struct timestamp_header ts_hdr;
     int new_len = 0;
+    uint8_t *decrypted_packet = NULL;
 
-    uint8_t *decrypted_packet = build_decrypted_packet(packet, header->len, ETHERNET_HEADER_LEN,
-                                                      &new_len, chosen_config, &ts_hdr);
-    if (!decrypted_packet){
-        printf("error decrypting packet");
-        return;
+    if (chosen_config->mode == MODE_NONE) {
+        if (header->len < ETHERNET_HEADER_LEN + sizeof(struct timestamp_header)) {
+            fprintf(stderr, "packet too short\n");
+            return;
+        }
+
+        new_len = header->len - sizeof(struct timestamp_header);
+        decrypted_packet = malloc(new_len);
+        if (!decrypted_packet) {
+            fprintf(stderr, "Memory allocation error\n");
+            return;
+        }
+        //build new packet and extrcat timestamp to calc latency
+        memcpy(decrypted_packet, packet, ETHERNET_HEADER_LEN);
+        memcpy(&ts_hdr, packet + ETHERNET_HEADER_LEN, sizeof(struct timestamp_header));
+        memcpy(decrypted_packet + ETHERNET_HEADER_LEN,
+               packet + ETHERNET_HEADER_LEN + sizeof(struct timestamp_header),
+               header->len - ETHERNET_HEADER_LEN - sizeof(struct timestamp_header));
+    } else {
+
+        decrypted_packet = build_decrypted_packet(packet, header->len, ETHERNET_HEADER_LEN,
+                                                          &new_len, chosen_config, &ts_hdr);
+        if (!decrypted_packet){
+            printf("error decrypting packet");
+            return;
+        }
     }
-
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME, &now);
-    long latency_us = (now.tv_sec - ts_hdr.ts.tv_sec) * 1000000000L +
-                      (now.tv_nsec - ts_hdr.ts.tv_nsec);
-    double latency_ms = latency_us / 1e6;
-    /*if (print_latency && latency_ms > -1) {
-        printf("packet: %d, latency: %.3f ms\n", packet_count, latency_ms);
-    }*/
+    struct timespec now; //calculate latency
+    clock_gettime(CLOCK_MONOTONIC, &now);
     elapsed = get_time_ns() - start_time;
-    //log_latency_ns("Packet decrypted", elapsed);
 
-    if (packet_count > 10 && decryption_latency_file != NULL && print_latency && latency_ms > 0 && latency_ms < 1000000) {
-        fprintf(decryption_latency_file, "%s, %s, %ld, %.3f\n", chosen_config->name, mode_to_string(chosen_config->mode), elapsed, latency_ms);
+    long latency_us = (now.tv_sec - ts_hdr.ts.tv_sec) * 1000000000L +(now.tv_nsec - ts_hdr.ts.tv_nsec); //transmission latency in ms
+    double latency_ms = latency_us / 1e6;
+
+    //print 'alg, mode, decrypt latency, end-to-end latency' to file
+    if (packet_count > 10 && decryption_latency_file != NULL && latency_ms > 0) {
+        const char* alg = (chosen_config->mode == MODE_NONE) ? "none" : chosen_config->name;
+        const char* mode = mode_to_string(chosen_config->mode);
+        fprintf(decryption_latency_file, "%s, %s, %ld, %.3f\n", alg, mode, elapsed, latency_ms);
         fflush(decryption_latency_file);
     }
 
@@ -61,7 +86,7 @@ void packet_handler_decrypt(u_char *user, const struct pcap_pkthdr *header, cons
 int main(int argc, char *argv[]){
     // get config and latency file
     chosen_config = get_chosen_config(argc, argv);
-    decryption_latency_file = fopen("../data/mn_data/decryption_latency_log.csv", "a");
+    decryption_latency_file = fopen(DECRYPTION_LATENCY_LOG, "a");
     if(!decryption_latency_file) {
         perror("failed to open latency file");
         exit(EXIT_FAILURE);

@@ -1,7 +1,6 @@
 from scapy.all import sendp, rdpcap, Ether, Raw
 import sys, os
 import argparse
-import struct, time
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -23,9 +22,11 @@ def main():
         pkt[Ether].dst = "00:00:00:00:00:02"
         pkt[Ether].src = "00:00:00:00:00:01"
 
-        print(f"sending packet {i}")
+        #print(f"sending packet {i}")
         sendp(pkt, iface="H1-eth0")
-        #time.sleep(0.1)
+        if i % 100 == 0:
+            print(f"sending packet {i}")
+        #time.sleep(3)
 
 if __name__ == "__main__":
     main()
